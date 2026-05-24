@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from easy_social import create_app
 from easy_social.extensions import db
 
 
 def main() -> None:
+    load_dotenv(dotenv_path=Path(".env"), override=False)
     app = create_app()
     with app.app_context():
         db.create_all()
