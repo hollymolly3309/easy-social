@@ -4,10 +4,12 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
 from .media import save_media
-from .models import Comment, Post, User, followers
+from .models import Comment, Poll, Post, User, followers
+from .polls import cast_vote, create_poll_post, normalize_poll_options, poll_template_context
 
 bp = Blueprint("social", __name__)
 
@@ -15,7 +17,9 @@ bp = Blueprint("social", __name__)
 def _post_query():
     return Post.query.options(
         joinedload(Post.author),
+        joinedload(Post.poll).joinedload(Poll.options),
         joinedload(Post.repost_of).joinedload(Post.author),
+        joinedload(Post.repost_of).joinedload(Post.poll).joinedload(Poll.options),
     )
 
 
@@ -68,6 +72,7 @@ def feed():
         "social/feed.html",
         posts=posts,
         comment_counts=_comment_counts_for_posts(posts),
+        **poll_template_context(posts, current_user.id),
     )
 
 
@@ -82,6 +87,7 @@ def explore():
         users=users,
         comment_counts=_comment_counts_for_posts(posts),
         followed_user_ids=_followed_user_ids(users),
+        **poll_template_context(posts, current_user.id),
     )
 
 
@@ -89,6 +95,22 @@ def explore():
 @login_required
 def create_post():
     body = request.form.get("body", "").strip()
+    is_poll = request.form.get("post_type") == "poll"
+
+    if is_poll:
+        if not body:
+            flash("Poll question is required.", "error")
+            return redirect(request.referrer or url_for("social.feed"))
+
+        options = normalize_poll_options(
+            [request.form.get(f"poll_option_{index}", "") for index in range(1, 5)]
+        )
+        try:
+            create_poll_post(current_user, body, options)
+            db.session.commit()
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("social.feed"))
 
     try:
         media_filename, media_type = save_media(request.files.get("media"))
@@ -121,6 +143,7 @@ def post_detail(post_id: int):
         post=post,
         comments=comments,
         comment_counts={post.display_post.id: len(comments)},
+        **poll_template_context([post], current_user.id),
     )
 
 
@@ -135,6 +158,32 @@ def add_comment(post_id: int):
         db.session.add(Comment(body=body, author=current_user, post=post))
         db.session.commit()
     return redirect(url_for("social.post_detail", post_id=post.id))
+
+
+@bp.post("/posts/<int:post_id>/vote")
+@login_required
+def vote_on_poll(post_id: int):
+    post = db.get_or_404(Post, post_id).display_post
+    if post.poll is None:
+        flash("This post is not a poll.", "error")
+        return redirect(request.referrer or url_for("social.feed"))
+
+    option_id = request.form.get("option_id", type=int)
+    if option_id is None:
+        flash("Choose a poll option before voting.", "error")
+        return redirect(request.referrer or url_for("social.feed"))
+
+    try:
+        cast_vote(post.poll, current_user, option_id)
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+    except IntegrityError:
+        db.session.rollback()
+        flash("You have already voted on this poll.", "error")
+
+    return redirect(request.referrer or url_for("social.post_detail", post_id=post.id))
 
 
 @bp.post("/posts/<int:post_id>/repost")
@@ -170,6 +219,7 @@ def profile(username: str):
         profile_user=user,
         posts=posts,
         comment_counts=_comment_counts_for_posts(posts),
+        **poll_template_context(posts, current_user.id),
     )
 
 

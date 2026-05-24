@@ -1,0 +1,31 @@
+{% if content.poll %}
+  {% set results = poll_results.get(content.id, []) if poll_results is defined else [] %}
+  {% set voted_option_id = user_votes.get(content.poll.id) if user_votes is defined else none %}
+  <section class="poll">
+    <div class="poll-options">
+      {% for item in results %}
+        {% if voted_option_id %}
+          <div class="poll-option poll-option-result{% if item.option.id == voted_option_id %} is-selected{% endif %}">
+            <div class="poll-option-header">
+              <span class="poll-option-text">{{ item.option.text }}</span>
+              <span class="poll-option-meta">{{ item.percentage }}% · {{ item.votes }} vote{{ 's' if item.votes != 1 else '' }}</span>
+            </div>
+            <div class="poll-bar-track">
+              <div class="poll-bar-fill" style="width: {{ item.percentage }}%;"></div>
+            </div>
+          </div>
+        {% else %}
+          <form method="post" action="{{ url_for('social.vote_on_poll', post_id=content.id) }}" class="poll-option-form">
+            <input type="hidden" name="option_id" value="{{ item.option.id }}">
+            <button type="submit" class="poll-option-button">{{ item.option.text }}</button>
+          </form>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% if voted_option_id %}
+      <p class="muted poll-footnote">You voted on this poll.</p>
+    {% else %}
+      <p class="muted poll-footnote">Tap an option to vote.</p>
+    {% endif %}
+  </section>
+{% endif %}
