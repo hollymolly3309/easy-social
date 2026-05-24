@@ -10,7 +10,7 @@ from werkzeug.serving import make_server
 
 from easy_social import create_app
 from easy_social.extensions import db
-from easy_social.models import Comment, Post, User
+from easy_social.models import Comment, Poll, PollOption, PollVote, Post, User
 
 selenium = pytest.importorskip("selenium")
 
@@ -90,6 +90,9 @@ def browser():
 @pytest.fixture(autouse=True)
 def clean_database(ui_app):
     with ui_app.app_context():
+        db.session.query(PollVote).delete()
+        db.session.query(PollOption).delete()
+        db.session.query(Poll).delete()
         db.session.query(Comment).delete()
         db.session.query(Post).delete()
         db.session.query(User).delete()
@@ -211,6 +214,59 @@ def test_user_can_register_create_post_and_comment(browser, live_server):
     set_field_value(browser, comment_form.find_element(By.NAME, "body"), "First UI comment")
     submit_form(browser, comment_form)
     wait_for_text(browser, "First UI comment")
+
+
+def create_poll_via_ui(browser, question: str, *options: str):
+    composer = browser.find_element(By.CSS_SELECTOR, "form.composer")
+    toggle = composer.find_element(By.CSS_SELECTOR, "[data-poll-toggle]")
+    browser.execute_script(
+        """
+        const toggle = arguments[0];
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('change', { bubbles: true }));
+        const postTypeField = toggle.closest('form').querySelector('[data-post-type-field]');
+        if (postTypeField) {
+          postTypeField.value = 'poll';
+        }
+        """,
+        toggle,
+    )
+
+    set_field_value(browser, composer.find_element(By.NAME, "body"), question)
+    for index, option in enumerate(options, start=1):
+        set_field_value(browser, composer.find_element(By.NAME, f"poll_option_{index}"), option)
+    submit_form(browser, composer)
+
+
+@pytest.mark.ui
+def test_user_can_create_poll_and_vote_in_browser(browser, live_server):
+    register_via_ui(browser, live_server, "alice")
+    create_poll_via_ui(browser, "Best pet?", "Cat", "Dog")
+    wait_for_text(browser, "Best pet?")
+
+    poll_form = WebDriverWait(browser, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, ".poll-option-form"))
+    )
+    submit_form(browser, poll_form)
+
+    wait_for_text(browser, "You voted on this poll.")
+    wait_for_text(browser, "100.0%")
+
+
+@pytest.mark.ui
+def test_duplicate_poll_vote_is_blocked_in_browser(browser, live_server):
+    register_via_ui(browser, live_server, "bob")
+    create_poll_via_ui(browser, "Pick a drink", "Tea", "Coffee")
+
+    poll_form = WebDriverWait(browser, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, ".poll-option-form"))
+    )
+    submit_form(browser, poll_form)
+    wait_for_text(browser, "You voted on this poll.")
+
+    browser.refresh()
+    wait_for_text(browser, "You voted on this poll.")
+    assert len(browser.find_elements(By.CSS_SELECTOR, ".poll-option-button")) == 0
 
 
 @pytest.mark.ui

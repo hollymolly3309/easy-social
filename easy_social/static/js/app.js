@@ -82,5 +82,35 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("form.composer").forEach(setupComposer);
+    document.querySelectorAll("form.composer").forEach(setupComposerPoll);
   });
+
+  function setupComposerPoll(composer) {
+    const toggle = composer.querySelector("[data-poll-toggle]");
+    const pollFields = composer.querySelector("[data-poll-fields]");
+    const mediaPicker = composer.querySelector("[data-media-picker]");
+    const mediaPreview = composer.querySelector("[data-media-preview]");
+    const postTypeField = composer.querySelector("[data-post-type-field]");
+
+    if (!toggle || !pollFields) {
+      return;
+    }
+
+    function syncPollMode() {
+      const enabled = toggle.checked;
+      pollFields.hidden = !enabled;
+      if (postTypeField) {
+        postTypeField.value = enabled ? "poll" : "standard";
+      }
+      if (mediaPicker) {
+        mediaPicker.hidden = enabled;
+      }
+      if (enabled && mediaPreview) {
+        mediaPreview.hidden = true;
+      }
+    }
+
+    toggle.addEventListener("change", syncPollMode);
+    syncPollMode();
+  }
 })();

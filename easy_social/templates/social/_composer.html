@@ -1,17 +1,42 @@
 <form method="post" action="{{ url_for('social.create_post') }}" enctype="multipart/form-data" class="composer">
   <textarea name="body" rows="4" maxlength="2000" placeholder="What is happening?"></textarea>
-  <div class="composer-preview" data-media-preview hidden>
-    <div class="composer-preview-frame" data-media-preview-frame></div>
-    <div class="composer-preview-meta">
-      <span data-media-preview-name></span>
-      <button type="button" class="link-button" data-media-preview-clear>Remove</button>
-    </div>
-  </div>
-  <div class="composer-actions">
-    <label class="file-picker">
-      <span>Attach image/video</span>
-      <input type="file" name="media" accept="image/*,video/*" data-media-input>
+  <label class="poll-toggle">
+    <input type="checkbox" data-poll-toggle>
+    Create poll
+  </label>
+  <input type="hidden" name="post_type" value="standard" data-post-type-field>
+  <div class="poll-fields" data-poll-fields hidden>
+    <label>
+      Option 1
+      <input name="poll_option_1" maxlength="200" placeholder="First choice">
     </label>
-    <button type="submit">Post</button>
+    <label>
+      Option 2
+      <input name="poll_option_2" maxlength="200" placeholder="Second choice">
+    </label>
+    <label>
+      Option 3
+      <input name="poll_option_3" maxlength="200" placeholder="Third choice (optional)">
+    </label>
+    <label>
+      Option 4
+      <input name="poll_option_4" maxlength="200" placeholder="Fourth choice (optional)">
+    </label>
+  </div>
+  <div class="composer-media" data-composer-media>
+    <div class="composer-preview" data-media-preview hidden>
+      <div class="composer-preview-frame" data-media-preview-frame></div>
+      <div class="composer-preview-meta">
+        <span data-media-preview-name></span>
+        <button type="button" class="link-button" data-media-preview-clear>Remove</button>
+      </div>
+    </div>
+    <div class="composer-actions">
+      <label class="file-picker" data-media-picker>
+        <span>Attach image/video</span>
+        <input type="file" name="media" accept="image/*,video/*" data-media-input>
+      </label>
+      <button type="submit">Post</button>
+    </div>
   </div>
 </form>
