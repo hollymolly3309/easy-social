@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
 from .media import save_media
@@ -176,7 +177,11 @@ def vote_on_poll(post_id: int):
         cast_vote(post.poll, current_user, option_id)
         db.session.commit()
     except ValueError as exc:
+        db.session.rollback()
         flash(str(exc), "error")
+    except IntegrityError:
+        db.session.rollback()
+        flash("You have already voted on this poll.", "error")
 
     return redirect(request.referrer or url_for("social.post_detail", post_id=post.id))
 

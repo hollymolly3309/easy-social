@@ -90,6 +90,9 @@
     const pollFields = composer.querySelector("[data-poll-fields]");
     const mediaPicker = composer.querySelector("[data-media-picker]");
     const mediaPreview = composer.querySelector("[data-media-preview]");
+    const mediaInput = composer.querySelector("[data-media-input]");
+    const previewFrame = composer.querySelector("[data-media-preview-frame]");
+    const previewName = composer.querySelector("[data-media-preview-name]");
     const postTypeField = composer.querySelector("[data-post-type-field]");
 
     if (!toggle || !pollFields) {
@@ -105,8 +108,22 @@
       if (mediaPicker) {
         mediaPicker.hidden = enabled;
       }
-      if (enabled && mediaPreview) {
-        mediaPreview.hidden = true;
+      if (mediaInput) {
+        mediaInput.disabled = enabled;
+      }
+      if (enabled) {
+        if (mediaInput) {
+          mediaInput.value = "";
+        }
+        if (mediaPreview) {
+          mediaPreview.hidden = true;
+        }
+        if (previewFrame) {
+          previewFrame.replaceChildren();
+        }
+        if (previewName) {
+          previewName.textContent = "";
+        }
       }
     }
 

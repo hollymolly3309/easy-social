@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from sqlalchemy import func
+
 from easy_social.extensions import db
 from easy_social.models import Poll, PollOption, PollVote, Post, User
 
@@ -61,6 +63,41 @@ def poll_results(poll: Poll) -> list[dict]:
     ]
 
 
+def poll_results_for_polls(polls: list[Poll]) -> dict[int, list[dict]]:
+    if not polls:
+        return {}
+
+    poll_ids = [poll.id for poll in polls]
+    counts_by_poll: dict[int, dict[int, int]] = {poll_id: {} for poll_id in poll_ids}
+
+    rows = (
+        db.session.query(PollVote.poll_id, PollVote.option_id, func.count(PollVote.id))
+        .filter(PollVote.poll_id.in_(poll_ids))
+        .group_by(PollVote.poll_id, PollVote.option_id)
+        .all()
+    )
+
+    for poll_id, option_id, count in rows:
+        counts_by_poll[poll_id][option_id] = count
+
+    results: dict[int, list[dict]] = {}
+    for poll in polls:
+        options = sorted(poll.options, key=lambda option: option.position)
+        counts = dict.fromkeys((option.id for option in options), 0)
+        counts.update(counts_by_poll[poll.id])
+        total_votes = sum(counts.values())
+        results[poll.id] = [
+            {
+                "option": option,
+                "votes": counts[option.id],
+                "percentage": round(counts[option.id] / total_votes * 100, 1) if total_votes else 0.0,
+            }
+            for option in options
+        ]
+
+    return results
+
+
 def user_votes_for_polls(poll_ids: list[int], user_id: int) -> dict[int, int]:
     if not poll_ids:
         return {}
@@ -73,15 +110,18 @@ def user_votes_for_polls(poll_ids: list[int], user_id: int) -> dict[int, int]:
 
 
 def poll_template_context(posts: list[Post], user_id: int) -> dict:
-    poll_ids = [
-        post.display_post.poll.id
-        for post in posts
-        if post.display_post.poll is not None
-    ]
+    poll_posts = {}
+    for post in posts:
+        display_post = post.display_post
+        if display_post.poll is not None:
+            poll_posts[display_post.id] = display_post
+
+    polls = [post.poll for post in poll_posts.values()]
+    poll_ids = [poll.id for poll in polls]
+    results_by_poll_id = poll_results_for_polls(polls)
     poll_results_map = {
-        post.display_post.id: poll_results(post.display_post.poll)
-        for post in posts
-        if post.display_post.poll is not None
+        post_id: results_by_poll_id[post.poll.id]
+        for post_id, post in poll_posts.items()
     }
     return {
         "poll_results": poll_results_map,
