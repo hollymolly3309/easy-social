@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from flask import (
     Blueprint,
-    Response,
     current_app,
     flash,
     redirect,
@@ -13,7 +12,7 @@ from flask import (
 )
 from flask_login import current_user, login_required, login_user, logout_user
 
-from .captcha import clear_captcha, get_captcha, refresh_captcha, render_captcha_image, verify_captcha
+from .captcha import clear_captcha, refresh_captcha, verify_captcha
 from .extensions import db
 from .models import User
 
@@ -25,8 +24,12 @@ def _fixed_captcha_code() -> str | None:
 
 
 def _render_register():
-    refresh_captcha(session, fixed_code=_fixed_captcha_code())
-    return render_template("auth/register.html")
+    _, captcha_image_b64 = refresh_captcha(
+        session,
+        secret=current_app.config["SECRET_KEY"],
+        fixed_code=_fixed_captcha_code(),
+    )
+    return render_template("auth/register.html", captcha_image_b64=captcha_image_b64)
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -34,9 +37,11 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for("social.feed"))
 
+    secret = current_app.config["SECRET_KEY"]
+
     if request.method == "POST":
         captcha_input = request.form.get("captcha", "").strip()
-        if not verify_captcha(session, captcha_input):
+        if not verify_captcha(session, captcha_input, secret=secret):
             clear_captcha(session)
             flash("Invalid or expired CAPTCHA. Please try again.", "error")
             return _render_register()
@@ -69,17 +74,6 @@ def register():
         return redirect(url_for("social.feed"))
 
     return _render_register()
-
-
-@bp.get("/captcha-image")
-def captcha_image():
-    code = get_captcha(session)
-    if not code:
-        code = refresh_captcha(session, fixed_code=_fixed_captcha_code())
-
-    response = Response(render_captcha_image(code), mimetype="image/png")
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return response
 
 
 @bp.route("/login", methods=["GET", "POST"])

@@ -20,6 +20,7 @@ def app():
                 "UPLOAD_FOLDER": str(Path(temp_dir) / "uploads"),
                 "MEDIA_STORAGE_BACKEND": "local",
                 "WTF_CSRF_ENABLED": False,
+                "CAPTCHA_FIXED_CODE": "TEST1",
             }
         )
         with app.app_context():
@@ -32,12 +33,8 @@ def client(app):
     return app.test_client()
 
 
-def register(client, username: str, email: str | None = None, password: str = "password", captcha: str | None = None):
-    if captcha is None:
-        client.get("/auth/register")
-        with client.session_transaction() as sess:
-            captcha = sess["captcha_answer"]
-
+def register(client, username: str, email: str | None = None, password: str = "password", captcha: str = "TEST1"):
+    client.get("/auth/register")
     return client.post(
         "/auth/register",
         data={

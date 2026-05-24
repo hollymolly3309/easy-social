@@ -19,7 +19,7 @@
       <label>
         CAPTCHA
         <div class="captcha-row">
-          <img src="{{ url_for('auth.captcha_image') }}" alt="CAPTCHA" class="captcha-image">
+          <img src="data:image/png;base64,{{ captcha_image_b64 }}" alt="CAPTCHA" class="captcha-image">
           <input name="captcha" autocomplete="off" maxlength="10" required>
         </div>
       </label>

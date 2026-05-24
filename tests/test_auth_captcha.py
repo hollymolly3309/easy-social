@@ -2,24 +2,26 @@ from __future__ import annotations
 
 import pytest
 
+import time
+
+from easy_social.captcha import CAPTCHA_CREATED_AT_KEY, CAPTCHA_TTL_SECONDS
 from easy_social.extensions import db
 from easy_social.models import User
 
 pytestmark = pytest.mark.integration
 
+TEST_CAPTCHA = "TEST1"
+
 
 def test_register_succeeds_with_valid_captcha(client, app):
     client.get("/auth/register")
-    with client.session_transaction() as sess:
-        captcha = sess["captcha_answer"]
-
     response = client.post(
         "/auth/register",
         data={
             "username": "alice",
             "email": "alice@example.com",
             "password": "password",
-            "captcha": captcha,
+            "captcha": TEST_CAPTCHA,
         },
         follow_redirects=True,
     )
@@ -65,10 +67,29 @@ def test_register_rejects_missing_captcha(client, app):
         assert User.query.filter_by(username="carol").first() is None
 
 
-def test_captcha_image_endpoint_returns_png(client):
+def test_register_rejects_expired_captcha(client, app):
     client.get("/auth/register")
-    response = client.get("/auth/captcha-image")
+    with client.session_transaction() as sess:
+        sess[CAPTCHA_CREATED_AT_KEY] = time.time() - CAPTCHA_TTL_SECONDS - 1
+
+    response = client.post(
+        "/auth/register",
+        data={
+            "username": "dave",
+            "email": "dave@example.com",
+            "password": "password",
+            "captcha": "TEST1",
+        },
+        follow_redirects=True,
+    )
+
+    assert b"Invalid or expired CAPTCHA" in response.data
+    with app.app_context():
+        assert User.query.filter_by(username="dave").first() is None
+
+
+def test_register_page_embeds_captcha_image(client):
+    response = client.get("/auth/register")
 
     assert response.status_code == 200
-    assert response.mimetype == "image/png"
-    assert response.data.startswith(b"\x89PNG")
+    assert b'data:image/png;base64,' in response.data
