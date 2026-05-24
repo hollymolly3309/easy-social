@@ -20,6 +20,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+UI_CAPTCHA_CODE = "TEST1"
+
 
 @pytest.fixture(scope="module")
 def ui_app():
@@ -33,11 +35,15 @@ def ui_app():
                 "UPLOAD_FOLDER": str(temp_path / "uploads"),
                 "MEDIA_STORAGE_BACKEND": "local",
                 "WTF_CSRF_ENABLED": False,
+                "CAPTCHA_FIXED_CODE": UI_CAPTCHA_CODE,
             }
         )
         with app.app_context():
             db.create_all()
         yield app
+        with app.app_context():
+            db.session.remove()
+            db.engine.dispose()
 
 
 @pytest.fixture(scope="module")
@@ -120,7 +126,7 @@ def submit_form(browser, form):
     browser.execute_script("arguments[0].requestSubmit ? arguments[0].requestSubmit() : arguments[0].submit();", form)
 
 
-def register_via_ui(browser, live_server: str, username: str):
+def register_via_ui(browser, live_server: str, username: str, captcha: str = UI_CAPTCHA_CODE):
     browser.get(f"{live_server}/auth/register")
     form = WebDriverWait(browser, 10).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "form.form-stack"))
@@ -128,6 +134,7 @@ def register_via_ui(browser, live_server: str, username: str):
     set_field_value(browser, form.find_element(By.NAME, "username"), username)
     set_field_value(browser, form.find_element(By.NAME, "email"), f"{username}@example.com")
     set_field_value(browser, form.find_element(By.NAME, "password"), "password")
+    set_field_value(browser, form.find_element(By.NAME, "captcha"), captcha)
     submit_form(browser, form)
     wait_for_feed(browser)
 
@@ -170,6 +177,22 @@ def test_composer_shows_media_preview_before_posting(
     preview.find_element(By.CSS_SELECTOR, "[data-media-preview-clear]").click()
     WebDriverWait(browser, 5).until(lambda _: not preview.is_displayed())
     assert media_input.get_attribute("value") == ""
+
+
+@pytest.mark.ui
+def test_register_rejects_invalid_captcha_in_browser(browser, live_server):
+    browser.get(f"{live_server}/auth/register")
+    form = WebDriverWait(browser, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "form.form-stack"))
+    )
+    set_field_value(browser, form.find_element(By.NAME, "username"), "invalid-captcha-user")
+    set_field_value(browser, form.find_element(By.NAME, "email"), "invalid@example.com")
+    set_field_value(browser, form.find_element(By.NAME, "password"), "password")
+    set_field_value(browser, form.find_element(By.NAME, "captcha"), "BAD99")
+    submit_form(browser, form)
+
+    wait_for_text(browser, "Invalid or expired CAPTCHA")
+    assert browser.find_element(By.NAME, "captcha") is not None
 
 
 @pytest.mark.ui

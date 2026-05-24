@@ -129,6 +129,29 @@ label {
   gap: 6px;
 }
 
+.captcha-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.captcha-image {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  flex: 0 0 auto;
+  height: 48px;
+  width: 160px;
+}
+
+.captcha-row input {
+  flex: 1 1 auto;
+}
+
+.captcha-hint {
+  margin: -4px 0 0;
+}
+
 input,
 textarea {
   border: 1px solid var(--line);
